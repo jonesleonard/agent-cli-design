@@ -1,0 +1,6 @@
+{
+  // Tables and code samples can't wrap without breaking them.
+  "config": {
+    "MD013": { "tables": false, "code_blocks": false }
+  }
+}

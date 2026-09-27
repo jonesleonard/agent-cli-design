@@ -1,0 +1,97 @@
+{
+  "skill_name": "agent-cli-design",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-deploy-cli-design",
+      "prompt": "I'm building a CLI called `shipit` for our internal deploy service. The REST API (deploy.internal) can: list services, get a service, trigger a deploy (async \u2014 returns a job id, takes 2-10 min), roll back a service to a previous release, and delete an environment. The main users will be Claude Code agents and GitHub Actions; humans occasionally. Write me a design spec before we write any code: command tree, flags, output format, errors, and how the dangerous stuff works. Save it as design.md.",
+      "expected_output": "A markdown design spec covering noun-verb commands, uniform JSON output, exit code table, structured errors, non-interactive behavior, async --wait, idempotency, dry-run, and a risk-based confirmation policy for rollback/delete.",
+      "files": [],
+      "assertions": [
+        "Command tree uses a consistent noun-verb structure with standard verbs (list/get/...)",
+        "A single JSON output flag is specified for all data-returning commands (no mixed --json / --format json)",
+        "States explicitly that data goes to stdout and diagnostics/progress to stderr",
+        "A documented exit code table with at least 4 distinct codes, including a usage-error code and a transient/retryable code",
+        "Errors in JSON mode have a structured envelope with a stable machine-readable code field",
+        "Never prompts when not attached to a TTY; missing required input fails fast naming the flag",
+        "Async deploy offers a blocking --wait (or equivalent) with a timeout, and returns the job id on timeout",
+        "Deploy trigger has a retry/idempotency strategy (idempotency key, natural key, or ledger) so a retried deploy doesn't double-deploy",
+        "--dry-run with structured output is offered for rollback and/or delete",
+        "Delete environment and prod rollback require an explicit non-default opt-in with risk-tiered treatment (e.g. confirmation envelope for prod/irreversible)",
+        "--yes (skip prompt) and --force (override safety check) are kept distinct, or only one is used with a single clear meaning",
+        "Headless auth via a token environment variable is specified",
+        "Includes drafted --help output for at least one command, with realistic example invocations",
+        "Internally consistent: every exit code used in examples matches the exit code table, and stdout/stderr statements match the examples",
+        "Stands alone: does not refer to the skill, its reference files, or probe_cli.py"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "retrofit-taskr",
+      "prompt": "here's taskr.py, a little task tracker CLI i wrote. my coding agents keep getting stuck with it \u2014 sometimes it just hangs, sometimes they think something worked when it didn't. can you fix it so agents can use it reliably without making it worse for me at the terminal? save the fixed taskr.py plus a short CHANGES.md",
+      "expected_output": "A rewritten taskr.py that never prompts without a TTY, has --json output, correct exit codes with errors on stderr, no auto-correct of unknown commands, --yes for destructive commands, and a CHANGES.md.",
+      "files": [
+        "fixtures/taskr.py"
+      ],
+      "assertions": [
+        "No invocation hangs when stdin is an open pipe with no TTY (add without title, delete, clear)",
+        "Unknown command exits non-zero and does not auto-run a guessed command",
+        "Unknown flag exits non-zero",
+        "list --json emits valid JSON on stdout with nothing else on stdout",
+        "Operating on a missing task id exits non-zero with the error on stderr",
+        "delete without --yes in a non-TTY context fails fast (non-zero, names the flag) and does not delete",
+        "delete with --yes deletes and exits 0",
+        "add --json returns the new task's id",
+        "No ANSI escape codes in output when piped",
+        "--help includes examples",
+        "CHANGES.md exists and lists the changes"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "safe-destructive-commands",
+      "prompt": "we have a `dbctl` CLI with `dbctl snapshot delete <id>` and `dbctl cluster destroy <name>`. right now both do a y/N prompt. our agents run it through claude code now and it just hangs. how should we redesign these two commands so agents can use them without hanging, but an agent can't nuke a prod cluster on its own? write your answer to answer.md",
+      "expected_output": "A recommendation that treats the two commands by risk, separates --yes from --force, uses a confirmation envelope or human-approval protocol for cluster destroy, fails fast without a TTY, offers dry-run, and notes server-side authorization is still needed.",
+      "files": [],
+      "assertions": [
+        "Treats snapshot delete and cluster destroy differently according to risk",
+        "Without a TTY the commands never prompt; they fail fast with an error naming the required flag",
+        "Distinguishes skip-confirmation (--yes) from override-safety (--force), or explicitly explains the chosen single flag's semantics",
+        "For prod cluster destroy, recommends a protocol returning a machine-readable change description plus a human-approved explicit confirmation step (--confirm / token / envelope), not just a plain bypass flag",
+        "Specifies a dedicated exit code or structured status for 'confirmation required'",
+        "Offers --dry-run / preview with structured output",
+        "Notes that CLI guardrails are not authorization; server-side/IAM permissions must still restrict prod",
+        "Makes snapshot delete idempotent or handles already-deleted gracefully",
+        "Includes concrete example invocations and outputs",
+        "States plainly that flags/confirmations cannot stop a determined agent and that prevention needs scoped credentials and/or server-side policy",
+        "Recommends a reversibility safeguard for cluster destroy (deletion protection, soft delete/grace period, or final snapshot)",
+        "Internally consistent: exit codes and statuses in examples match any exit code table given",
+        "Concise: answer.md is under 200 lines"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "audit-invctl",
+      "prompt": "our team wrote invctl.py, an inventory CLI. before we point our agents at it, can you audit how agent-ready it is? don't change the code, just write up what you find in audit.md",
+      "expected_output": "An audit report grouped by severity that finds the planted subtle flaws with evidence and fixes, and doesn't flag the correct TTY handling.",
+      "files": [
+        "fixtures/invctl.py"
+      ],
+      "assertions": [
+        "Finds that the config warning is printed to stdout and corrupts `item list --json`",
+        "Finds that `item list` is unbounded (no --limit/pagination; 400 items dumped)",
+        "Finds that `item import` exits 0 when rows are skipped (partial failure)",
+        "Finds the inconsistent JSON flag: `export --format json` vs `--json` elsewhere",
+        "Finds that `delete --force` both skips confirmation and overrides the in-stock safety check",
+        "Finds that the pricing token is accepted only as a flag (leaks via argv/history; no env var)",
+        "Finds that `created` is a ctime string in `list --json` but an epoch int in `get --json`",
+        "Finds that all failures share exit code 1 (no distinct not-found / auth codes)",
+        "Does not falsely report that delete hangs or prompts without a TTY",
+        "Findings are grouped by severity and each has evidence (command output or code line) and a concrete fix",
+        "Did not modify invctl.py",
+        "Finds that import accepts duplicate SKUs within a single CSV (the known set is never updated), or otherwise demonstrates an import correctness bug by running it",
+        "Makes no false claims about behavior (e.g. does not say import fully deduplicates)"
+      ]
+    }
+  ]
+}
