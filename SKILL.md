@@ -165,6 +165,12 @@ user's context argues otherwise, and explain the trade-off when it matters.
    - Help text for at least one representative command, with examples.
    - Pagination/limit defaults for list commands.
    - The `AGENTS.md` snippet you'd ship.
+   Before drafting, read `references/output-and-errors.md`,
+   `references/safety-and-mutation.md`, and `references/discoverability.md`.
+   Also read `references/security.md` when the CLI touches external data,
+   credentials, or the filesystem; read `references/advanced-patterns.md` only
+   when async work, profiles, introspection, delivery sinks, or feedback are
+   relevant.
 3. **Implement** in whatever language the user chose, applying the spec. Keep
    the output/error/exit-code logic centralized so every command behaves the
    same way.
@@ -173,8 +179,11 @@ user's context argues otherwise, and explain the trade-off when it matters.
 
 ## Retrofit
 
-1. Probe the CLI (`scripts/probe_cli.py`) and read the command code for
-   prompts, printing, and exit paths.
+1. Read `references/audit.md`, then probe the CLI (`scripts/probe_cli.py`) and
+   read the command code for prompts, printing, and exit paths. Read
+   `references/output-and-errors.md` and `references/safety-and-mutation.md`
+   when assessing those concerns; read `references/security.md` when the CLI
+   touches external data, credentials, or the filesystem.
 2. List gaps by tier. Blockers first: prompts without a non-interactive path,
    exit 0 on failure, data mixed with logs on stdout.
 3. Fix without breaking existing human workflows: keep interactive behavior
@@ -183,52 +192,11 @@ user's context argues otherwise, and explain the trade-off when it matters.
 
 ## Audit
 
-1. Run the bundled probe against the CLI (it only reads help and passes
-   harmless flags, but don't point it at a command that mutates on bare
-   invocation):
-
-   ```bash
-   uv run scripts/probe_cli.py -- <cli> [subcommand ...]
-   ```
-
-   Probe several subcommands, especially list/get and one mutating command
-   with `--help`. It reports hangs, help/examples presence, JSON validity,
-   ANSI leakage, unknown-flag handling, and `--version`.
-2. Read the code or docs for what probes can't see: idempotency, dry-run,
-   confirmation handling, validation, naming consistency, auth.
-3. Treat the principles as a floor, not the whole audit. Agents also get hurt
-   by plain bugs: exercise the tool's own logic with the inputs an agent will
-   send on a bad day — retries, duplicates (including within one batch),
-   empty and malformed values, missing files, and partial failures — against
-   a throwaway data location. Verify every claim in the report against a
-   command you actually ran or a line of code you read; "X deduplicates" or
-   "Y is idempotent" needs a demonstration, not an inference.
-4. For a deeper automated pass, suggest
-   [cli-agent-lint](https://github.com/Camil-H/cli-agent-lint) (34 checks,
-   letter grade; use its `--no-probe` mode on untrusted CLIs).
-5. Report with this structure:
-
-   ```markdown
-   # Agent-readiness audit: <cli>
-
-   ## Summary
-   <2–3 sentences: overall readiness, the single most important fix>
-
-   ## Blockers
-   - <finding> — evidence: <command + observed output> — fix: <concrete change>
-
-   ## Friction
-   - ...
-
-   ## Polish
-   - ...
-
-   ## What already works
-   - ...
-   ```
-
-   Every finding needs evidence (a command you ran or a line of code) and a
-   concrete fix. Don't pad with generic advice the CLI already satisfies.
+Read `references/audit.md` for the probe procedure, evidence requirements,
+optional linting, and report template. The short version: probe several
+subcommands, inspect what the probe cannot see, test retry and malformed-input
+paths against throwaway data, and support every finding with evidence and a
+concrete fix.
 
 ## Reference files
 
@@ -236,6 +204,8 @@ user's context argues otherwise, and explain the trade-off when it matters.
   table, error envelope, pagination, `--fields`/`--quiet`, streaming.
 - `references/safety-and-mutation.md` — non-interactive rules, `--yes` vs
   `--force` vs confirmation envelope, dry-run, idempotency keys, validation.
+- `references/audit.md` — probe procedure, evidence requirements, deeper linting,
+  and the audit report template; read for audits and retrofits.
 - `references/discoverability.md` — help text template, naming policy,
   stability contract, `AGENTS.md` snippets vs skills, CLI vs MCP.
 - `references/security.md` — untrusted output, secrets, hostile input,
